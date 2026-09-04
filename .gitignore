@@ -1,0 +1,9 @@
+.gradle/
+.gradle-home/
+.idea/
+build/
+frontend/dist/
+frontend/node_modules/
+frontend/*.tsbuildinfo
+*.iml
+*.log

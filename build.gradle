@@ -1,0 +1,60 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '4.0.2'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'com.jira'
+version = '0.0.1-SNAPSHOT'
+description = 'velocity-analytics'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+    implementation 'org.apache.poi:poi-ooxml:5.2.5'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+def frontendDir = file('frontend')
+def frontendNodeModulesDir = file("$frontendDir/node_modules")
+def frontendDistDir = file("$frontendDir/dist")
+
+tasks.register('npmInstallFrontend', Exec) {
+    workingDir frontendDir
+    commandLine 'npm', 'install'
+    onlyIf { !frontendNodeModulesDir.exists() }
+}
+
+tasks.register('buildFrontend', Exec) {
+    dependsOn tasks.named('npmInstallFrontend')
+    workingDir frontendDir
+    commandLine 'npm', 'run', 'build'
+    inputs.dir frontendDir
+    outputs.dir frontendDistDir
+}
+
+tasks.named('processResources') {
+    dependsOn tasks.named('buildFrontend')
+    from(frontendDistDir) {
+        into 'static'
+    }
+}
+
+tasks.named('bootRun') {
+    dependsOn tasks.named('processResources')
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
