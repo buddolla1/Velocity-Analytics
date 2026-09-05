@@ -83,5 +83,5 @@ export interface JiraSyncRequest {
   username: string;
   apiToken: string;
   projectKey: string;
-  endDate: string;
+  startDate: string;
 }

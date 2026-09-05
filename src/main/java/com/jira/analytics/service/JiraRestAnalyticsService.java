@@ -61,12 +61,13 @@ public class JiraRestAnalyticsService {
     public DashboardResponse sync(JiraSyncRequest request) {
         List<SyncTarget> targets = resolveTargets(request);
         OffsetDateTime syncedAt = OffsetDateTime.now(ZoneOffset.UTC);
+        String currentDate = LocalDate.now().toString();
         List<JiraIssueRecord> allRecords = new ArrayList<>();
 
         for (SyncTarget target : targets) {
             jiraRestClient.validateConfiguration(target.baseUrl(), target.username(), target.apiToken());
 
-            String jql = resolveJql(target);
+            String jql = resolveJql(target, currentDate);
             List<JsonNode> allIssues = new ArrayList<>();
             String nextPageToken = null;
             do {
@@ -395,7 +396,7 @@ public class JiraRestAnalyticsService {
         String username = resolveSingleValue(request == null ? null : request.username(), properties.getUsername(), "jira.username");
         String apiToken = resolveSingleValue(request == null ? null : request.apiToken(), properties.getApiToken(), "jira.api-token");
         List<String> projectKeys = parseCsvValues(valueOrFallback(request == null ? null : request.projectKey(), properties.getProjectKey()));
-        String endDate = resolveEndDate(request);
+        String startDate = resolveStartDate(request);
 
         String baseUrl = valueOrFallback(null, properties.getBaseUrl());
         if (!StringUtils.hasText(baseUrl)) {
@@ -408,14 +409,14 @@ public class JiraRestAnalyticsService {
 
         if (projectKeys.isEmpty()) {
             if (StringUtils.hasText(properties.getJql())) {
-                return List.of(new SyncTarget(baseUrl, username, apiToken, null, endDate, properties.getJql().trim()));
+                return List.of(new SyncTarget(baseUrl, username, apiToken, null, startDate, properties.getJql().trim()));
             }
             throw new IllegalStateException("Provide at least one Jira project key or configure JIRA_JQL.");
         }
 
         List<SyncTarget> targets = new ArrayList<>(projectKeys.size());
         for (String projectKey : projectKeys) {
-            targets.add(new SyncTarget(baseUrl, username, apiToken, projectKey, endDate, null));
+            targets.add(new SyncTarget(baseUrl, username, apiToken, projectKey, startDate, null));
         }
         return targets;
     }
@@ -436,14 +437,14 @@ public class JiraRestAnalyticsService {
         return values.get(0);
     }
 
-    private String resolveEndDate(JiraSyncRequest request) {
-        String suppliedDate = request == null ? null : request.endDate();
+    private String resolveStartDate(JiraSyncRequest request) {
+        String suppliedDate = request == null ? null : request.startDate();
         String candidate = StringUtils.hasText(suppliedDate) ? suppliedDate.trim() : LocalDate.now().toString();
         try {
             LocalDate.parse(candidate);
             return candidate;
         } catch (Exception exception) {
-            throw new IllegalStateException("End date must use yyyy-MM-dd format.");
+            throw new IllegalStateException("Start date must use yyyy-MM-dd format.");
         }
     }
 
@@ -461,20 +462,20 @@ public class JiraRestAnalyticsService {
         return StringUtils.hasText(requestValue) ? requestValue.trim() : fallbackValue;
     }
 
-    private String resolveJql(SyncTarget target) {
+    private String resolveJql(SyncTarget target, String currentDate) {
         if (StringUtils.hasText(target.jql())) {
-            return composeJql(target.jql().trim(), target.endDate());
+            return composeJql(target.jql().trim(), target.startDate(), currentDate);
         }
         if (StringUtils.hasText(properties.getJql())) {
-            return composeJql(properties.getJql().trim(), target.endDate());
+            return composeJql(properties.getJql().trim(), target.startDate(), currentDate);
         }
         if (StringUtils.hasText(target.projectKey())) {
-            return composeJql("project = " + quoteIfNeeded(target.projectKey().trim()), target.endDate());
+            return composeJql("project = " + quoteIfNeeded(target.projectKey().trim()), target.startDate(), currentDate);
         }
         throw new IllegalStateException("Provide a Jira project key or configure JIRA_JQL before syncing Jira data.");
     }
 
-    private String composeJql(String baseJql, String endDate) {
+    private String composeJql(String baseJql, String startDate, String currentDate) {
         String trimmed = baseJql.trim();
         String lower = trimmed.toLowerCase(Locale.ROOT);
         int orderByIndex = lower.indexOf(" order by ");
@@ -484,8 +485,12 @@ public class JiraRestAnalyticsService {
             trimmed = trimmed.substring(0, orderByIndex).trim();
         }
 
-        if (StringUtils.hasText(endDate)) {
-            trimmed = trimmed + " AND updated <= \"" + endDate + "\"";
+        if (StringUtils.hasText(startDate)) {
+            trimmed = trimmed + " AND updated >= \"" + startDate + "\"";
+        }
+
+        if (StringUtils.hasText(currentDate)) {
+            trimmed = trimmed + " AND updated <= \"" + currentDate + "\"";
         }
 
         if (StringUtils.hasText(ordering)) {
@@ -716,6 +721,6 @@ public class JiraRestAnalyticsService {
         private OffsetDateTime validationToDoneAt;
     }
 
-    private record SyncTarget(String baseUrl, String username, String apiToken, String projectKey, String endDate, String jql) {
+    private record SyncTarget(String baseUrl, String username, String apiToken, String projectKey, String startDate, String jql) {
     }
 }

@@ -16,6 +16,7 @@ Set these environment variables before syncing Jira data:
 - `JIRA_BASE_URL`
 - `JIRA_USERNAME` single value
 - `JIRA_API_TOKEN` single value
+- The sync request sends a single `startDate` value in `yyyy-MM-dd` format and the app syncs through the current date
 - `JIRA_PROJECT_KEY` or `JIRA_JQL`
 - `JIRA_STORY_POINTS_FIELD` optional, defaults to `customfield_10016`
 - `JIRA_SPRINT_FIELD` optional, defaults to `customfield_10020`

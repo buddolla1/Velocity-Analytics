@@ -12,16 +12,16 @@ export function JiraSyncPage({ loading, lastSyncAt, onSync }: JiraSyncPageProps)
   const [username, setUsername] = useState('');
   const [apiToken, setApiToken] = useState('');
   const [projectKey, setProjectKey] = useState('');
-  const [endDate, setEndDate] = useState(() => formatLocalDate(new Date()));
+  const [startDate, setStartDate] = useState(() => formatLocalDate(new Date()));
 
   const canSync = useMemo(
     () =>
       username.trim().length > 0 &&
       apiToken.trim().length > 0 &&
       projectKey.trim().length > 0 &&
-      endDate.trim().length > 0 &&
+      startDate.trim().length > 0 &&
       !loading,
-    [apiToken, endDate, loading, projectKey, username]
+    [apiToken, loading, projectKey, startDate, username]
   );
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -35,7 +35,7 @@ export function JiraSyncPage({ loading, lastSyncAt, onSync }: JiraSyncPageProps)
       username: username.trim(),
       apiToken: apiToken.trim(),
       projectKey: projectKey.trim(),
-      endDate: endDate.trim(),
+      startDate: startDate.trim(),
     });
   };
 
@@ -46,7 +46,7 @@ export function JiraSyncPage({ loading, lastSyncAt, onSync }: JiraSyncPageProps)
           <div>
             <div className="table-panel__title">Jira Sync</div>
             <div className="table-panel__subtitle">
-              Enter one Jira username, one API token, and one or more project keys, then sync them into the local database.
+              Enter one Jira username, one API token, a start date, and one or more project keys, then sync them into the local database.
             </div>
           </div>
           {lastSyncAt ? <div className="pr-sync-panel__stamp">Last sync: {lastSyncAt}</div> : null}
@@ -91,6 +91,22 @@ export function JiraSyncPage({ loading, lastSyncAt, onSync }: JiraSyncPageProps)
           </label>
 
           <label className="jira-sync-field">
+            <span>jira.start-date</span>
+            <div className="jira-sync-field__control jira-sync-field__control--date">
+              <CheckCircle2 size={16} />
+              <input
+                type="date"
+                value={startDate}
+                onChange={(event) => setStartDate(event.target.value)}
+                disabled={loading}
+              />
+            </div>
+            <div className="jira-sync-field__hint">
+              Records sync from this date through today.
+            </div>
+          </label>
+
+          <label className="jira-sync-field">
             <span>jira.project-key</span>
             <div className="jira-sync-field__control">
               <CheckCircle2 size={16} />
@@ -106,20 +122,6 @@ export function JiraSyncPage({ loading, lastSyncAt, onSync }: JiraSyncPageProps)
             <div className="jira-sync-field__hint">
               Multiple project keys are allowed. The sync runs once per key and stores the merged Jira records locally.
             </div>
-          </label>
-
-          <label className="jira-sync-field">
-            <span>end date</span>
-            <div className="jira-sync-field__control jira-sync-field__control--date">
-              <CheckCircle2 size={16} />
-              <input
-                type="date"
-                value={endDate}
-                onChange={(event) => setEndDate(event.target.value)}
-                disabled={loading}
-              />
-            </div>
-            <div className="jira-sync-field__hint">The sync query uses `updated &lt;=` this date in `yyyy-MM-dd` format.</div>
           </label>
 
           <button type="submit" className="jira-sync-button" disabled={!canSync}>

@@ -107,7 +107,7 @@ export default function App() {
   const noRowsMessage = hasRawData ? 'No records match the selected filters.' : 'No Jira records found.';
   const topbarSubtitle =
     activePage === 'sync'
-      ? 'Enter one Jira username, one API token, and project keys on the sync page.'
+      ? 'Enter one Jira username, one API token, a start date, and project keys on the sync page.'
       : 'Sync Jira Cloud data into the local database, then filter and analyze the returned records locally.';
 
   async function loadDashboard() {
@@ -126,7 +126,7 @@ export default function App() {
     }
   }
 
-  async function handleSync(payload: { username: string; apiToken: string; projectKey: string; endDate: string }) {
+  async function handleSync(payload: { username: string; apiToken: string; projectKey: string; startDate: string }) {
     if (loading) {
       return;
     }
