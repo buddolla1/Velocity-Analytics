@@ -17,6 +17,7 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.Month;
+import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -391,8 +392,8 @@ public class JiraRestAnalyticsService {
     }
 
     private List<SyncTarget> resolveTargets(JiraSyncRequest request) {
-        List<String> usernames = parseCsvValues(valueOrFallback(request == null ? null : request.username(), properties.getUsername()));
-        List<String> apiTokens = parseCsvValues(valueOrFallback(request == null ? null : request.apiToken(), properties.getApiToken()));
+        String username = resolveSingleValue(request == null ? null : request.username(), properties.getUsername(), "jira.username");
+        String apiToken = resolveSingleValue(request == null ? null : request.apiToken(), properties.getApiToken(), "jira.api-token");
         List<String> projectKeys = parseCsvValues(valueOrFallback(request == null ? null : request.projectKey(), properties.getProjectKey()));
         String endDate = resolveEndDate(request);
 
@@ -401,30 +402,38 @@ public class JiraRestAnalyticsService {
             throw new IllegalStateException("Missing Jira base URL. Set JIRA_BASE_URL.");
         }
 
-        if (usernames.isEmpty() || apiTokens.isEmpty()) {
+        if (!StringUtils.hasText(username) || !StringUtils.hasText(apiToken)) {
             throw new IllegalStateException("Provide at least one Jira username and API token.");
         }
 
         if (projectKeys.isEmpty()) {
             if (StringUtils.hasText(properties.getJql())) {
-                return List.of(new SyncTarget(baseUrl, usernames.get(0), apiTokens.get(0), null, endDate, properties.getJql().trim()));
+                return List.of(new SyncTarget(baseUrl, username, apiToken, null, endDate, properties.getJql().trim()));
             }
             throw new IllegalStateException("Provide at least one Jira project key or configure JIRA_JQL.");
         }
 
-        int maxCount = Math.max(projectKeys.size(), Math.max(usernames.size(), apiTokens.size()));
-        if (!isCompatibleCount(usernames.size(), maxCount) || !isCompatibleCount(apiTokens.size(), maxCount) || !isCompatibleCount(projectKeys.size(), maxCount)) {
-            throw new IllegalStateException("Comma-separated Jira usernames, API tokens, and project keys must either have the same number of values or use a single value to apply to all targets.");
-        }
-
-        List<SyncTarget> targets = new ArrayList<>(maxCount);
-        for (int index = 0; index < maxCount; index++) {
-            String username = usernames.size() == 1 ? usernames.get(0) : usernames.get(index);
-            String apiToken = apiTokens.size() == 1 ? apiTokens.get(0) : apiTokens.get(index);
-            String projectKey = projectKeys.size() == 1 ? projectKeys.get(0) : projectKeys.get(index);
+        List<SyncTarget> targets = new ArrayList<>(projectKeys.size());
+        for (String projectKey : projectKeys) {
             targets.add(new SyncTarget(baseUrl, username, apiToken, projectKey, endDate, null));
         }
         return targets;
+    }
+
+    private String resolveSingleValue(String suppliedValue, String fallbackValue, String fieldName) {
+        String resolved = valueOrFallback(suppliedValue, fallbackValue);
+        if (!StringUtils.hasText(resolved)) {
+            return null;
+        }
+
+        List<String> values = Arrays.stream(StringUtils.commaDelimitedListToStringArray(resolved))
+                .map(String::trim)
+                .filter(StringUtils::hasText)
+                .toList();
+        if (values.size() != 1) {
+            throw new IllegalStateException(fieldName + " must contain a single value.");
+        }
+        return values.get(0);
     }
 
     private String resolveEndDate(JiraSyncRequest request) {
@@ -436,10 +445,6 @@ public class JiraRestAnalyticsService {
         } catch (Exception exception) {
             throw new IllegalStateException("End date must use yyyy-MM-dd format.");
         }
-    }
-
-    private boolean isCompatibleCount(int valueCount, int targetCount) {
-        return valueCount == 1 || valueCount == targetCount;
     }
 
     private List<String> parseCsvValues(String value) {

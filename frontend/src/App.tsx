@@ -107,7 +107,7 @@ export default function App() {
   const noRowsMessage = hasRawData ? 'No records match the selected filters.' : 'No Jira records found.';
   const topbarSubtitle =
     activePage === 'sync'
-      ? 'Enter comma-separated Jira usernames, API tokens, and project keys on the sync page.'
+      ? 'Enter one Jira username, one API token, and project keys on the sync page.'
       : 'Sync Jira Cloud data into the local database, then filter and analyze the returned records locally.';
 
   async function loadDashboard() {

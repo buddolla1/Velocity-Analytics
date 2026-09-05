@@ -46,7 +46,7 @@ export function JiraSyncPage({ loading, lastSyncAt, onSync }: JiraSyncPageProps)
           <div>
             <div className="table-panel__title">Jira Sync</div>
             <div className="table-panel__subtitle">
-              Enter Jira Cloud credentials and comma-separated project keys, then sync them into the local database.
+              Enter one Jira username, one API token, and one or more project keys, then sync them into the local database.
             </div>
           </div>
           {lastSyncAt ? <div className="pr-sync-panel__stamp">Last sync: {lastSyncAt}</div> : null}
@@ -55,37 +55,38 @@ export function JiraSyncPage({ loading, lastSyncAt, onSync }: JiraSyncPageProps)
         <form className="jira-sync-grid" onSubmit={handleSubmit}>
           <label className="jira-sync-field">
             <span>jira.username</span>
-            <div className="jira-sync-field__control">
+            <div className="jira-sync-field__control jira-sync-field__control--single">
               <UserRoundPen size={16} />
-              <textarea
+              <input
+                type="text"
                 value={username}
                 onChange={(event) => setUsername(event.target.value)}
-                placeholder="user@company.com, another-user@company.com"
-                rows={4}
+                placeholder="user@company.com"
                 spellCheck={false}
                 disabled={loading}
               />
             </div>
             <div className="jira-sync-field__hint">
-              One value or several comma-separated values. If you provide one username, it applies to every project key.
+              Single Jira Cloud username or email address.
             </div>
           </label>
 
           <label className="jira-sync-field">
             <span>jira.api-token</span>
-            <div className="jira-sync-field__control">
+            <div className="jira-sync-field__control jira-sync-field__control--single">
               <ShieldAlert size={16} />
-              <textarea
+              <input
+                type="password"
                 value={apiToken}
                 onChange={(event) => setApiToken(event.target.value)}
-                placeholder="token-1, token-2"
-                rows={4}
+                placeholder="Jira API token"
                 spellCheck={false}
+                autoComplete="off"
                 disabled={loading}
               />
             </div>
             <div className="jira-sync-field__hint">
-              Tokens can be comma-separated as well. A single token is reused for every project key.
+              Single Jira API token for that account.
             </div>
           </label>
 

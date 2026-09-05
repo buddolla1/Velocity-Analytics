@@ -14,8 +14,8 @@ Spring Boot service for syncing Jira Cloud data into a local H2 database and ser
 Set these environment variables before syncing Jira data:
 
 - `JIRA_BASE_URL`
-- `JIRA_USERNAME`
-- `JIRA_API_TOKEN`
+- `JIRA_USERNAME` single value
+- `JIRA_API_TOKEN` single value
 - `JIRA_PROJECT_KEY` or `JIRA_JQL`
 - `JIRA_STORY_POINTS_FIELD` optional, defaults to `customfield_10016`
 - `JIRA_SPRINT_FIELD` optional, defaults to `customfield_10020`

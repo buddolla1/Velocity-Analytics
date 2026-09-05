@@ -348,16 +348,25 @@ button {
   color: #172b4d;
 }
 
+.jira-sync-field__control--single {
+  min-height: 56px;
+  align-items: center;
+}
+
+.jira-sync-field__control input,
 .jira-sync-field__control textarea {
   width: 100%;
-  min-height: 92px;
-  resize: vertical;
   border: 0;
   outline: 0;
   padding: 0;
   margin: 0;
   background: transparent;
   color: inherit;
+}
+
+.jira-sync-field__control textarea {
+  min-height: 92px;
+  resize: vertical;
 }
 
 .jira-sync-field__control--date {
@@ -377,6 +386,7 @@ button {
   color: inherit;
 }
 
+.jira-sync-field__control input::placeholder,
 .jira-sync-field__control textarea::placeholder {
   color: #6b778c;
 }
