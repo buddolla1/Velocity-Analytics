@@ -1,22 +1,24 @@
 export interface JiraIssue {
   issueType: string;
   issueKey: string;
-  issueId?: string;
+  issueId: string;
   status: string;
   projectKey: string;
   projectName: string;
   summary: string;
-  storyPoints?: number | null;
-  sprint?: string | null;
-  assignee?: string | null;
-  sso?: string | null;
-  resolved?: string | null;
-  monthNumber?: number | null;
-  monthName?: string | null;
-  toDoToInProgress?: string | null;
-  validation?: string | null;
-  done?: string | null;
-  cycleTimeDays?: number | null;
+  storyPoints: number | null;
+  sprint: string | null;
+  assignee: string | null;
+  sso: string | null;
+  resolvedAt: string | null;
+  monthNumber: number | null;
+  monthName: string | null;
+  toDoToInProgressAt: string | null;
+  inProgressToValidationAt: string | null;
+  validationToDoneAt: string | null;
+  jiraCycleTimeDays: number | null;
+  jiraUpdatedAt: string | null;
+  lastSyncedAt: string | null;
 }
 
 export interface DashboardSummary {
@@ -75,4 +77,11 @@ export interface AnalyticsFilters {
   sprint: string;
   assignee: string;
   issueType: string;
+}
+
+export interface JiraSyncRequest {
+  username: string;
+  apiToken: string;
+  projectKey: string;
+  endDate: string;
 }

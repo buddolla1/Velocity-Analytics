@@ -20,7 +20,11 @@ repositories {
 
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+    implementation 'org.springframework.boot:spring-boot-starter-json'
+    implementation 'org.springframework.boot:spring-boot-starter-jdbc'
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
     implementation 'org.apache.poi:poi-ooxml:5.2.5'
+    runtimeOnly 'com.h2database:h2'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
@@ -29,17 +33,18 @@ dependencies {
 def frontendDir = file('frontend')
 def frontendNodeModulesDir = file("$frontendDir/node_modules")
 def frontendDistDir = file("$frontendDir/dist")
+def npmExecutable = file('/usr/local/bin/npm').exists() ? '/usr/local/bin/npm' : 'npm'
 
 tasks.register('npmInstallFrontend', Exec) {
     workingDir frontendDir
-    commandLine 'npm', 'install'
+    commandLine npmExecutable, 'install'
     onlyIf { !frontendNodeModulesDir.exists() }
 }
 
 tasks.register('buildFrontend', Exec) {
     dependsOn tasks.named('npmInstallFrontend')
     workingDir frontendDir
-    commandLine 'npm', 'run', 'build'
+    commandLine npmExecutable, 'run', 'build'
     inputs.dir frontendDir
     outputs.dir frontendDistDir
 }

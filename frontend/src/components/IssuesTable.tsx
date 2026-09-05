@@ -60,7 +60,7 @@ export function IssuesTable({ data }: IssuesTableProps) {
                   <td>{row.sprint || 'No Sprint'}</td>
                   <td>{row.status || '—'}</td>
                   <td>{typeof row.storyPoints === 'number' ? row.storyPoints.toFixed(1) : '—'}</td>
-                  <td>{formatResolved(row.resolved)}</td>
+                  <td>{formatResolved(row.resolvedAt)}</td>
                 </tr>
               ))}
             </tbody>

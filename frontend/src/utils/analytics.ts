@@ -28,7 +28,7 @@ export function formatAssignee(value: string | null | undefined): string {
 export function isCompletedIssue(issue: JiraIssue): boolean {
   return (
     COMPLETED_STATUSES.has(normalizeKey(issue.status)) ||
-    Boolean(normalizeText(issue.resolved))
+    Boolean(normalizeText(issue.resolvedAt))
   );
 }
 
@@ -47,8 +47,8 @@ function issuePoints(issue: JiraIssue): number {
 }
 
 function issueCycleTime(issue: JiraIssue): number | null {
-  return typeof issue.cycleTimeDays === 'number' && Number.isFinite(issue.cycleTimeDays)
-    ? issue.cycleTimeDays
+  return typeof issue.jiraCycleTimeDays === 'number' && Number.isFinite(issue.jiraCycleTimeDays)
+    ? issue.jiraCycleTimeDays
     : null;
 }
 

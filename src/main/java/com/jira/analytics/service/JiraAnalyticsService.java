@@ -7,6 +7,7 @@ import com.jira.analytics.dto.IssueTypeMetrics;
 import com.jira.analytics.dto.JiraIssue;
 import com.jira.analytics.dto.MonthlyVelocity;
 import com.jira.analytics.dto.SprintMetrics;
+import com.syf.jirametrics.model.JiraIssueRecord;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -14,6 +15,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.time.OffsetDateTime;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -48,7 +50,46 @@ public class JiraAnalyticsService {
         List<EmployeeMetrics> employeeMetrics = buildEmployeeMetrics(completedIssues);
         List<IssueTypeMetrics> issueTypeMetrics = buildIssueTypeMetrics(issues);
 
-        return new DashboardResponse(summary, monthlyVelocity, sprintMetrics, employeeMetrics, issueTypeMetrics, issues);
+        return new DashboardResponse(summary, monthlyVelocity, sprintMetrics, employeeMetrics, issueTypeMetrics, convertIssues(issues));
+    }
+
+    private List<JiraIssueRecord> convertIssues(List<JiraIssue> issues) {
+        return issues.stream()
+                .map(issue -> new JiraIssueRecord(
+                        null,
+                        issue.issueId(),
+                        issue.issueKey(),
+                        issue.issueType(),
+                        issue.status(),
+                        issue.projectKey(),
+                        issue.projectName(),
+                        issue.summary(),
+                        issue.storyPoints(),
+                        issue.sprint(),
+                        issue.assignee(),
+                        issue.sso(),
+                        parseOffsetDateTime(issue.resolved()),
+                        issue.monthNumber(),
+                        issue.monthName(),
+                        parseOffsetDateTime(issue.toDoToInProgress()),
+                        parseOffsetDateTime(issue.validation()),
+                        parseOffsetDateTime(issue.done()),
+                        issue.cycleTimeDays(),
+                        null,
+                        null
+                ))
+                .toList();
+    }
+
+    private OffsetDateTime parseOffsetDateTime(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        try {
+            return OffsetDateTime.parse(value);
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     private DashboardSummary buildSummary(List<JiraIssue> issues, List<JiraIssue> completedIssues) {

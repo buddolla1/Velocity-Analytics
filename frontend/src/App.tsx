@@ -1,27 +1,26 @@
-import { useMemo, useState, type ChangeEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   Activity,
   ArrowUpRight,
   CheckCircle2,
-  FileSpreadsheet,
   LayoutDashboard,
   RefreshCw,
   Rocket,
   ShieldAlert,
-  Upload,
   Users,
 } from 'lucide-react';
 import { FiltersBar } from './components/FiltersBar';
 import { OverviewPage } from './pages/OverviewPage';
+import { JiraSyncPage } from './pages/JiraSyncPage';
 import PrAnalyticsPage from './pages/PrAnalyticsPage';
 import { SprintAnalyticsPage } from './pages/SprintAnalyticsPage';
 import { TeamAnalyticsPage } from './pages/TeamAnalyticsPage';
 import { IssuesPage } from './pages/IssuesPage';
-import { uploadJiraFile } from './services/jiraApi';
+import { fetchJiraDashboard, syncJiraDashboard } from './services/jiraApi';
 import type { AnalyticsFilters, DashboardResponse, JiraIssue } from './types/analytics';
 import { buildAnalytics, filterIssues, formatAssignee, normalizeText } from './utils/analytics';
 
-type PageKey = 'overview' | 'sprints' | 'team' | 'issues' | 'pr';
+type PageKey = 'sync' | 'overview' | 'sprints' | 'team' | 'issues' | 'pr';
 
 const EMPTY_FILTERS: AnalyticsFilters = {
   project: '',
@@ -31,23 +30,8 @@ const EMPTY_FILTERS: AnalyticsFilters = {
   issueType: '',
 };
 
-const EMPTY_RESPONSE: DashboardResponse = {
-  summary: {
-    totalIssues: 0,
-    storiesCompleted: 0,
-    storyPointsCompleted: 0,
-    defectsClosed: 0,
-    activeContributors: 0,
-    averageCycleTimeDays: null,
-  },
-  monthlyVelocity: [],
-  sprintMetrics: [],
-  employeeMetrics: [],
-  issueTypeMetrics: [],
-  issues: [],
-};
-
 const NAVIGATION: Array<{ key: PageKey; label: string; icon: ReactNode }> = [
+  { key: 'sync', label: 'Jira Sync', icon: <RefreshCw size={16} /> },
   { key: 'overview', label: 'Overview', icon: <LayoutDashboard size={16} /> },
   { key: 'sprints', label: 'Sprints', icon: <Rocket size={16} /> },
   { key: 'team', label: 'Team', icon: <Users size={16} /> },
@@ -58,13 +42,17 @@ const NAVIGATION: Array<{ key: PageKey; label: string; icon: ReactNode }> = [
 export default function App() {
   const [rawIssues, setRawIssues] = useState<JiraIssue[]>([]);
   const [filters, setFilters] = useState<AnalyticsFilters>(EMPTY_FILTERS);
-  const [activePage, setActivePage] = useState<PageKey>('overview');
+  const [activePage, setActivePage] = useState<PageKey>('sync');
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-  const [uploadedFileName, setUploadedFileName] = useState('');
+  const [lastSyncAt, setLastSyncAt] = useState('');
 
   const filteredIssues = useMemo(() => filterIssues(rawIssues, filters), [rawIssues, filters]);
   const analytics = useMemo(() => buildAnalytics(filteredIssues), [filteredIssues]);
+
+  useEffect(() => {
+    void loadDashboard();
+  }, []);
 
   const projectOptions = useMemo(
     () =>
@@ -117,12 +105,29 @@ export default function App() {
   const hasRawData = rawIssues.length > 0;
   const hasFilteredData = filteredIssues.length > 0;
   const noRowsMessage = hasRawData ? 'No records match the selected filters.' : 'No Jira records found.';
+  const topbarSubtitle =
+    activePage === 'sync'
+      ? 'Enter comma-separated Jira usernames, API tokens, and project keys on the sync page.'
+      : 'Sync Jira Cloud data into the local database, then filter and analyze the returned records locally.';
 
-  const handleUpload = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = '';
+  async function loadDashboard() {
+    setLoading(true);
+    setErrorMessage('');
 
-    if (!file || loading) {
+    try {
+      const response = await fetchJiraDashboard();
+      const issues = Array.isArray(response.issues) ? response.issues : [];
+      setRawIssues(issues);
+      setLastSyncAt(formatLatestSyncAt(issues));
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Failed to load Jira dashboard.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleSync(payload: { username: string; apiToken: string; projectKey: string; endDate: string }) {
+    if (loading) {
       return;
     }
 
@@ -130,26 +135,30 @@ export default function App() {
     setErrorMessage('');
 
     try {
-      const response = await uploadJiraFile(file);
+      const response = await syncJiraDashboard(payload);
       const issues = Array.isArray(response.issues) ? response.issues : [];
       setRawIssues(issues);
       setFilters(EMPTY_FILTERS);
       setActivePage('overview');
-      setUploadedFileName(file.name);
+      setLastSyncAt(formatLatestSyncAt(issues));
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : 'Upload failed.');
+      setErrorMessage(error instanceof Error ? error.message : 'Sync failed.');
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   const renderPage = () => {
+    if (activePage === 'sync') {
+      return <JiraSyncPage loading={loading} lastSyncAt={lastSyncAt} onSync={handleSync} />;
+    }
+
     if (activePage === 'pr') {
       return <PrAnalyticsPage />;
     }
 
     if (!hasRawData) {
-      return <EmptyState title={noRowsMessage} description="Upload a Jira Excel report to build the dashboard." />;
+      return <EmptyState title={noRowsMessage} description="Sync Jira data to build the dashboard." />;
     }
 
     if (!hasFilteredData) {
@@ -204,19 +213,10 @@ export default function App() {
           <div>
             <div className="topbar__eyebrow">Velocity Analytics</div>
             <h1 className="topbar__title">Velocity Analytics</h1>
-            <p className="topbar__subtitle">
-              Upload Jira or Bitbucket delivery exports once, then filter and analyze the returned records locally.
-            </p>
-            {uploadedFileName ? <div className="topbar__file">Latest upload: {uploadedFileName}</div> : null}
+            <p className="topbar__subtitle">{topbarSubtitle}</p>
+            {lastSyncAt ? <div className="topbar__file">Last sync: {lastSyncAt}</div> : null}
           </div>
 
-          {activePage === 'pr' ? null : (
-            <label className={loading ? 'upload-button upload-button--disabled' : 'upload-button'}>
-              {loading ? <RefreshCw size={18} className="spin" /> : <Upload size={18} />}
-              <span>{loading ? 'Processing Jira Report...' : 'Upload Jira Excel'}</span>
-              <input type="file" accept=".xlsx,.xls" onChange={handleUpload} disabled={loading} />
-            </label>
-          )}
         </header>
 
         {activePage === 'pr' ? null : errorMessage ? (
@@ -226,7 +226,7 @@ export default function App() {
           </div>
         ) : null}
 
-        {activePage === 'pr' ? null : (
+        {activePage === 'sync' || activePage === 'pr' ? null : (
           <FiltersBar
             filters={filters}
             options={{
@@ -244,7 +244,9 @@ export default function App() {
 
         {renderPage()}
 
-        {activePage !== 'pr' && hasRawData ? <div className="footer-note">Loaded records: {rawIssues.length}</div> : null}
+        {activePage !== 'pr' && activePage !== 'sync' && hasRawData ? (
+          <div className="footer-note">Loaded records: {rawIssues.length}</div>
+        ) : null}
       </main>
     </div>
   );
@@ -256,13 +258,37 @@ function uniqueSortedValues(values: string[]): string[] {
   );
 }
 
+function formatLatestSyncAt(issues: JiraIssue[]): string {
+  const syncValues = issues
+    .map((issue) => issue.lastSyncedAt)
+    .filter((value): value is string => Boolean(value && value.trim().length > 0));
+
+  if (syncValues.length === 0) {
+    return '';
+  }
+
+  const latest = syncValues
+    .map((value) => new Date(value))
+    .filter((value) => !Number.isNaN(value.getTime()))
+    .sort((left, right) => right.getTime() - left.getTime())[0];
+
+  if (!latest) {
+    return '';
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(latest);
+}
+
 function EmptyState({ title, description }: { title: string; description: string }) {
   return (
     <section className="empty-state">
-      <FileSpreadsheet size={42} />
+      <RefreshCw size={42} />
       <h2>{title}</h2>
       <p>{description}</p>
-      <div className="empty-state__hint">Upload a file and the dashboard will populate automatically.</div>
+      <div className="empty-state__hint">Sync Jira data and the dashboard will populate automatically.</div>
     </section>
   );
 }
