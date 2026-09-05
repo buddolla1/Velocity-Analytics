@@ -35,8 +35,7 @@ public class JiraExcelParser {
             "issuekey",
             "status",
             "projectkey",
-            "projectname",
-            "summary"
+            "projectname"
     );
 
     private final DataFormatter dataFormatter = new DataFormatter(Locale.US);
@@ -128,7 +127,7 @@ public class JiraExcelParser {
                 readString(row, headers, evaluator, "status"),
                 readString(row, headers, evaluator, "projectkey"),
                 readString(row, headers, evaluator, "projectname"),
-                readString(row, headers, evaluator, "summary"),
+                readOptionalString(row, headers, evaluator, "summary"),
                 readOptionalDouble(row, headers, evaluator, "storypoints"),
                 readOptionalString(row, headers, evaluator, "sprint"),
                 readOptionalString(row, headers, evaluator, "assignee"),

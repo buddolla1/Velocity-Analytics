@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { FiltersBar } from './components/FiltersBar';
 import { OverviewPage } from './pages/OverviewPage';
+import PrAnalyticsPage from './pages/PrAnalyticsPage';
 import { SprintAnalyticsPage } from './pages/SprintAnalyticsPage';
 import { TeamAnalyticsPage } from './pages/TeamAnalyticsPage';
 import { IssuesPage } from './pages/IssuesPage';
@@ -20,7 +21,7 @@ import { uploadJiraFile } from './services/jiraApi';
 import type { AnalyticsFilters, DashboardResponse, JiraIssue } from './types/analytics';
 import { buildAnalytics, filterIssues, formatAssignee, normalizeText } from './utils/analytics';
 
-type PageKey = 'overview' | 'sprints' | 'team' | 'issues';
+type PageKey = 'overview' | 'sprints' | 'team' | 'issues' | 'pr';
 
 const EMPTY_FILTERS: AnalyticsFilters = {
   project: '',
@@ -51,6 +52,7 @@ const NAVIGATION: Array<{ key: PageKey; label: string; icon: ReactNode }> = [
   { key: 'sprints', label: 'Sprints', icon: <Rocket size={16} /> },
   { key: 'team', label: 'Team', icon: <Users size={16} /> },
   { key: 'issues', label: 'Issues', icon: <Activity size={16} /> },
+  { key: 'pr', label: 'Cycle Time / PR Analytics', icon: <ArrowUpRight size={16} /> },
 ];
 
 export default function App() {
@@ -142,6 +144,10 @@ export default function App() {
   };
 
   const renderPage = () => {
+    if (activePage === 'pr') {
+      return <PrAnalyticsPage />;
+    }
+
     if (!hasRawData) {
       return <EmptyState title={noRowsMessage} description="Upload a Jira Excel report to build the dashboard." />;
     }
@@ -204,37 +210,41 @@ export default function App() {
             {uploadedFileName ? <div className="topbar__file">Latest upload: {uploadedFileName}</div> : null}
           </div>
 
-          <label className={loading ? 'upload-button upload-button--disabled' : 'upload-button'}>
-            {loading ? <RefreshCw size={18} className="spin" /> : <Upload size={18} />}
-            <span>{loading ? 'Processing Jira Report...' : 'Upload Jira Excel'}</span>
-            <input type="file" accept=".xlsx,.xls" onChange={handleUpload} disabled={loading} />
-          </label>
+          {activePage === 'pr' ? null : (
+            <label className={loading ? 'upload-button upload-button--disabled' : 'upload-button'}>
+              {loading ? <RefreshCw size={18} className="spin" /> : <Upload size={18} />}
+              <span>{loading ? 'Processing Jira Report...' : 'Upload Jira Excel'}</span>
+              <input type="file" accept=".xlsx,.xls" onChange={handleUpload} disabled={loading} />
+            </label>
+          )}
         </header>
 
-        {errorMessage ? (
+        {activePage === 'pr' ? null : errorMessage ? (
           <div className="error-banner" role="alert">
             <ShieldAlert size={16} />
             <span>{errorMessage}</span>
           </div>
         ) : null}
 
-        <FiltersBar
-          filters={filters}
-          options={{
-            projects: projectOptions,
-            months: monthOptions,
-            sprints: sprintOptions,
-            assignees: assigneeOptions,
-            issueTypes: issueTypeOptions,
-          }}
-          loading={loading}
-          onChange={setFilters}
-          onClear={() => setFilters(EMPTY_FILTERS)}
-        />
+        {activePage === 'pr' ? null : (
+          <FiltersBar
+            filters={filters}
+            options={{
+              projects: projectOptions,
+              months: monthOptions,
+              sprints: sprintOptions,
+              assignees: assigneeOptions,
+              issueTypes: issueTypeOptions,
+            }}
+            loading={loading}
+            onChange={setFilters}
+            onClear={() => setFilters(EMPTY_FILTERS)}
+          />
+        )}
 
         {renderPage()}
 
-        {hasRawData ? <div className="footer-note">Loaded records: {rawIssues.length}</div> : null}
+        {activePage !== 'pr' && hasRawData ? <div className="footer-note">Loaded records: {rawIssues.length}</div> : null}
       </main>
     </div>
   );
