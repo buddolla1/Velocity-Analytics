@@ -3,6 +3,7 @@ import {
   Activity,
   ArrowUpRight,
   CheckCircle2,
+  GitPullRequest,
   LayoutDashboard,
   RefreshCw,
   Rocket,
@@ -10,6 +11,7 @@ import {
   Users,
 } from 'lucide-react';
 import { FiltersBar } from './components/FiltersBar';
+import { SyncBitbucketDataPage } from './pages/SyncBitbucketDataPage';
 import { OverviewPage } from './pages/OverviewPage';
 import { JiraSyncPage } from './pages/JiraSyncPage';
 import PrAnalyticsPage from './pages/PrAnalyticsPage';
@@ -20,7 +22,7 @@ import { fetchJiraDashboard, syncJiraDashboard } from './services/jiraApi';
 import type { AnalyticsFilters, DashboardResponse, JiraIssue } from './types/analytics';
 import { buildAnalytics, filterIssues, formatAssignee, normalizeText } from './utils/analytics';
 
-type PageKey = 'sync' | 'overview' | 'sprints' | 'team' | 'issues' | 'pr';
+type PageKey = 'sync' | 'bitbucket-sync' | 'overview' | 'sprints' | 'team' | 'issues' | 'pr';
 
 const EMPTY_FILTERS: AnalyticsFilters = {
   project: '',
@@ -32,6 +34,7 @@ const EMPTY_FILTERS: AnalyticsFilters = {
 
 const NAVIGATION: Array<{ key: PageKey; label: string; icon: ReactNode }> = [
   { key: 'sync', label: 'Jira Sync', icon: <RefreshCw size={16} /> },
+  { key: 'bitbucket-sync', label: 'Sync Bitbucket Data', icon: <GitPullRequest size={16} /> },
   { key: 'overview', label: 'Overview', icon: <LayoutDashboard size={16} /> },
   { key: 'sprints', label: 'Sprints', icon: <Rocket size={16} /> },
   { key: 'team', label: 'Team', icon: <Users size={16} /> },
@@ -42,7 +45,7 @@ const NAVIGATION: Array<{ key: PageKey; label: string; icon: ReactNode }> = [
 export default function App() {
   const [rawIssues, setRawIssues] = useState<JiraIssue[]>([]);
   const [filters, setFilters] = useState<AnalyticsFilters>(EMPTY_FILTERS);
-  const [activePage, setActivePage] = useState<PageKey>('sync');
+  const [activePage, setActivePage] = useState<PageKey>(() => getPageFromPath(window.location.pathname));
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [lastSyncAt, setLastSyncAt] = useState('');
@@ -52,6 +55,15 @@ export default function App() {
 
   useEffect(() => {
     void loadDashboard();
+  }, []);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setActivePage(getPageFromPath(window.location.pathname));
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
   const projectOptions = useMemo(
@@ -108,6 +120,8 @@ export default function App() {
   const topbarSubtitle =
     activePage === 'sync'
       ? 'Enter one Jira username, one API token, a start date, and project keys on the sync page.'
+      : activePage === 'bitbucket-sync'
+        ? 'Select a project, load SSOs, resolve Bitbucket user IDs, and sync the mapping.'
       : 'Sync Jira Cloud data into the local database, then filter and analyze the returned records locally.';
 
   async function loadDashboard() {
@@ -151,6 +165,10 @@ export default function App() {
   const renderPage = () => {
     if (activePage === 'sync') {
       return <JiraSyncPage loading={loading} lastSyncAt={lastSyncAt} onSync={handleSync} />;
+    }
+
+    if (activePage === 'bitbucket-sync') {
+      return <SyncBitbucketDataPage />;
     }
 
     if (activePage === 'pr') {
@@ -199,7 +217,7 @@ export default function App() {
               key={item.key}
               type="button"
               className={item.key === activePage ? 'sidebar__nav-item sidebar__nav-item--active' : 'sidebar__nav-item'}
-              onClick={() => setActivePage(item.key)}
+              onClick={() => navigateToPage(item.key, setActivePage)}
             >
               <span className="sidebar__nav-icon">{item.icon}</span>
               <span>{item.label}</span>
@@ -226,7 +244,7 @@ export default function App() {
           </div>
         ) : null}
 
-        {activePage === 'sync' || activePage === 'pr' ? null : (
+        {activePage === 'sync' || activePage === 'bitbucket-sync' || activePage === 'pr' ? null : (
           <FiltersBar
             filters={filters}
             options={{
@@ -244,7 +262,7 @@ export default function App() {
 
         {renderPage()}
 
-        {activePage !== 'pr' && activePage !== 'sync' && hasRawData ? (
+        {activePage !== 'pr' && activePage !== 'sync' && activePage !== 'bitbucket-sync' && hasRawData ? (
           <div className="footer-note">Loaded records: {rawIssues.length}</div>
         ) : null}
       </main>
@@ -256,6 +274,56 @@ function uniqueSortedValues(values: string[]): string[] {
   return [...new Set(values.filter((value) => value.trim().length > 0))].sort((left, right) =>
     left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' })
   );
+}
+
+function getPageFromPath(pathname: string): PageKey {
+  if (pathname === '/bitbucket/sync') {
+    return 'bitbucket-sync';
+  }
+  if (pathname === '/overview') {
+    return 'overview';
+  }
+  if (pathname === '/sprints') {
+    return 'sprints';
+  }
+  if (pathname === '/team') {
+    return 'team';
+  }
+  if (pathname === '/issues') {
+    return 'issues';
+  }
+  if (pathname === '/pr') {
+    return 'pr';
+  }
+  return 'sync';
+}
+
+function getPathForPage(page: PageKey): string {
+  switch (page) {
+    case 'bitbucket-sync':
+      return '/bitbucket/sync';
+    case 'overview':
+      return '/overview';
+    case 'sprints':
+      return '/sprints';
+    case 'team':
+      return '/team';
+    case 'issues':
+      return '/issues';
+    case 'pr':
+      return '/pr';
+    case 'sync':
+    default:
+      return '/';
+  }
+}
+
+function navigateToPage(page: PageKey, setActivePage: (page: PageKey) => void) {
+  const nextPath = getPathForPage(page);
+  if (window.location.pathname !== nextPath) {
+    window.history.pushState({}, '', nextPath);
+  }
+  setActivePage(page);
 }
 
 function formatLatestSyncAt(issues: JiraIssue[]): string {

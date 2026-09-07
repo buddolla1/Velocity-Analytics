@@ -418,6 +418,201 @@ button {
   cursor: not-allowed;
 }
 
+.bitbucket-sync-panel {
+  margin-bottom: 18px;
+}
+
+.bitbucket-sync-panel__meta {
+  display: grid;
+  gap: 4px;
+  justify-items: end;
+  font-size: 13px;
+  font-weight: 700;
+  color: #44546f;
+  white-space: nowrap;
+}
+
+.bitbucket-sync-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.bitbucket-sync-field {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.bitbucket-sync-field span {
+  font-size: 12px;
+  font-weight: 700;
+  color: #5e6c84;
+}
+
+.bitbucket-sync-field__control,
+.bitbucket-sync-field__readonly {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  min-height: 56px;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid #c1c7d0;
+  background: #fff;
+  color: #172b4d;
+}
+
+.bitbucket-sync-field__control select,
+.bitbucket-sync-field__control input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.bitbucket-sync-field__control--date input[type='date'] {
+  height: 30px;
+}
+
+.bitbucket-sync-field__readonly {
+  background: #f7f8f9;
+}
+
+.bitbucket-sso-panel {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid #dfe1e6;
+}
+
+.bitbucket-sso-panel__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.bitbucket-sso-panel__title {
+  font-size: 14px;
+  font-weight: 800;
+  color: #172b4d;
+}
+
+.bitbucket-sso-panel__subtitle {
+  margin-top: 4px;
+  font-size: 13px;
+  color: #44546f;
+}
+
+.bitbucket-sso-panel__actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.bitbucket-sso-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.bitbucket-sso-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid #dfe1e6;
+  border-radius: 10px;
+  background: #fff;
+  color: #172b4d;
+}
+
+.bitbucket-sso-item input {
+  margin: 0;
+}
+
+.bitbucket-sso-empty {
+  grid-column: 1 / -1;
+  padding: 12px;
+  border: 1px dashed #c1c7d0;
+  border-radius: 10px;
+  color: #5e6c84;
+  background: #fff;
+}
+
+.bitbucket-sync-actions {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: 18px;
+}
+
+.bitbucket-sync-button {
+  height: 44px;
+  border: 0;
+  border-radius: 10px;
+  background: #0c66e4;
+  color: #fff;
+  padding: 0 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: center;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.bitbucket-sync-button--secondary {
+  background: #f7f8f9;
+  color: #172b4d;
+  border: 1px solid #c1c7d0;
+}
+
+.bitbucket-sync-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.bitbucket-sync-result {
+  margin-top: 0;
+}
+
+.bitbucket-sync-result__kpis {
+  margin-bottom: 16px;
+}
+
+.bitbucket-sync-result__detail {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  font-size: 13px;
+  color: #44546f;
+}
+
+.bitbucket-sync-error-list {
+  margin-top: 16px;
+  display: grid;
+  gap: 10px;
+}
+
+.bitbucket-sync-error-item {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border-radius: 10px;
+  background: #fff1f0;
+  border: 1px solid #f5c2c7;
+  color: #7a1f2b;
+}
+
 .pr-upload-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
