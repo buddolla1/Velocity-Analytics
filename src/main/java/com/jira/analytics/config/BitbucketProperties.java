@@ -6,6 +6,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class BitbucketProperties {
 
     private String baseUrl;
+    private String username;
+    private String apiToken;
     private String userLookupPath = "/rest/api/1.0/users?filter=";
     private int pageSize = 100;
     private int catalogTtlHours = 24;
@@ -20,6 +22,22 @@ public class BitbucketProperties {
 
     public void setBaseUrl(String baseUrl) {
         this.baseUrl = baseUrl;
+    }
+
+    public String getUsername() {
+        return username;
+    }
+
+    public void setUsername(String username) {
+        this.username = username;
+    }
+
+    public String getApiToken() {
+        return apiToken;
+    }
+
+    public void setApiToken(String apiToken) {
+        this.apiToken = apiToken;
     }
 
     public String getUserLookupPath() {

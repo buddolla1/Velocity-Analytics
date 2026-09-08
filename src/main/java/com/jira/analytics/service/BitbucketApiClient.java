@@ -127,6 +127,7 @@ public class BitbucketApiClient {
                 .timeout(Duration.ofSeconds(30))
                 .GET()
                 .header("Accept", "application/json")
+                .headers(optionalAuthorizationHeader())
                 .build();
 
         try {
@@ -196,5 +197,13 @@ public class BitbucketApiClient {
 
     private String encode(String value) {
         return URLEncoder.encode(value == null ? "" : value, StandardCharsets.UTF_8);
+    }
+
+    private String[] optionalAuthorizationHeader() {
+        String authorization = BitbucketAuthSupport.basicAuthHeader(properties);
+        if (!StringUtils.hasText(authorization)) {
+            return new String[0];
+        }
+        return new String[] {"Authorization", authorization};
     }
 }

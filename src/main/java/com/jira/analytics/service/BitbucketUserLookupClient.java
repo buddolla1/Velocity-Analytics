@@ -51,6 +51,7 @@ public class BitbucketUserLookupClient {
                 .timeout(Duration.ofSeconds(30))
                 .GET()
                 .header("Accept", "application/json")
+                .headers(optionalAuthorizationHeader())
                 .build();
 
         try {
@@ -111,5 +112,13 @@ public class BitbucketUserLookupClient {
 
     private String normalize(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
+    private String[] optionalAuthorizationHeader() {
+        String authorization = BitbucketAuthSupport.basicAuthHeader(properties);
+        if (!StringUtils.hasText(authorization)) {
+            return new String[0];
+        }
+        return new String[] {"Authorization", authorization};
     }
 }
