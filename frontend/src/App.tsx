@@ -119,9 +119,9 @@ export default function App() {
   const noRowsMessage = hasRawData ? 'No records match the selected filters.' : 'No Jira records found.';
   const topbarSubtitle =
     activePage === 'sync'
-      ? 'Enter one Jira username, one API token, a start date, and project keys on the sync page.'
+    ? 'Enter one Jira username, one API token, a start date, and project keys on the sync page.'
       : activePage === 'bitbucket-sync'
-        ? 'Select a project, load SSOs, resolve Bitbucket user IDs, and sync the mapping.'
+        ? 'Select a project, load SSOs, refresh the repository catalog, and sync Bitbucket PR data.'
       : 'Sync Jira Cloud data into the local database, then filter and analyze the returned records locally.';
 
   async function loadDashboard() {

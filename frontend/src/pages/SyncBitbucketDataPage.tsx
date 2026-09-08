@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, GitPullRequest, RefreshCw, ShieldAlert, SquareCheckBig } from 'lucide-react';
-import { fetchProjectSsos, fetchProjects, syncBitbucketData } from '../services/bitbucketSyncApi';
-import type { BitbucketSyncResult, ProjectOption } from '../types/bitbucketSync';
+import { fetchProjectSsos, fetchProjects, refreshBitbucketCatalog, syncBitbucketData } from '../services/bitbucketSyncApi';
+import type {
+  BitbucketCatalogRefreshResult,
+  BitbucketSyncResult,
+  ProjectOption,
+} from '../types/bitbucketSync';
+
+type ProgressState = 'idle' | 'loading-projects' | 'loading-ssos' | 'refreshing-catalog' | 'syncing';
 
 export function SyncBitbucketDataPage() {
   const [projects, setProjects] = useState<ProjectOption[]>([]);
@@ -10,11 +16,12 @@ export function SyncBitbucketDataPage() {
   const [selectedSsos, setSelectedSsos] = useState<string[]>([]);
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
-  const [loadingProjects, setLoadingProjects] = useState(false);
-  const [loadingSsos, setLoadingSsos] = useState(false);
-  const [syncing, setSyncing] = useState(false);
+  const [fullRefresh, setFullRefresh] = useState(false);
+  const [progressState, setProgressState] = useState<ProgressState>('idle');
+  const [statusMessage, setStatusMessage] = useState('Select a project to begin.');
   const [errorMessage, setErrorMessage] = useState('');
-  const [result, setResult] = useState<BitbucketSyncResult | null>(null);
+  const [catalogResult, setCatalogResult] = useState<BitbucketCatalogRefreshResult | null>(null);
+  const [syncResult, setSyncResult] = useState<BitbucketSyncResult | null>(null);
 
   const selectedProject = useMemo(
     () => projects.find((project) => String(project.projectId) === selectedProjectId) ?? null,
@@ -24,9 +31,10 @@ export function SyncBitbucketDataPage() {
   const canSync =
     Boolean(selectedProject) &&
     selectedSsos.length > 0 &&
-    !syncing &&
-    !loadingProjects &&
-    !loadingSsos;
+    progressState !== 'loading-projects' &&
+    progressState !== 'loading-ssos' &&
+    progressState !== 'refreshing-catalog' &&
+    progressState !== 'syncing';
 
   useEffect(() => {
     void loadProjects();
@@ -36,41 +44,73 @@ export function SyncBitbucketDataPage() {
     if (!selectedProjectId) {
       setProjectSsos([]);
       setSelectedSsos([]);
+      setSyncResult(null);
       return;
     }
     void loadProjectSsos(Number(selectedProjectId));
   }, [selectedProjectId]);
 
   async function loadProjects() {
-    setLoadingProjects(true);
+    setProgressState('loading-projects');
+    setStatusMessage('Loading application projects.');
     setErrorMessage('');
+
     try {
       const next = await fetchProjects();
       setProjects(next);
       if (next.length === 1) {
         setSelectedProjectId(String(next[0].projectId));
       }
+      setStatusMessage(next.length > 0 ? 'Choose a project, then load SSOs.' : 'No projects found in the database.');
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Failed to load projects.');
+      setStatusMessage('Project load failed.');
     } finally {
-      setLoadingProjects(false);
+      setProgressState('idle');
     }
   }
 
   async function loadProjectSsos(projectId: number) {
-    setLoadingSsos(true);
+    setProgressState('loading-ssos');
+    setStatusMessage('Loading SSOs for the selected project.');
     setErrorMessage('');
     setProjectSsos([]);
     setSelectedSsos([]);
-    setResult(null);
+    setSyncResult(null);
+
     try {
       const next = await fetchProjectSsos(projectId);
       const values = next.map((item) => item.sso).filter(Boolean);
       setProjectSsos(values);
+      setStatusMessage(values.length > 0 ? `${values.length} SSOs loaded.` : 'No SSOs were found for this project.');
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Failed to load project SSOs.');
+      setStatusMessage('SSO load failed.');
     } finally {
-      setLoadingSsos(false);
+      setProgressState('idle');
+    }
+  }
+
+  async function handleRefreshCatalog() {
+    if (progressState === 'syncing') {
+      return;
+    }
+
+    setProgressState('refreshing-catalog');
+    setStatusMessage('Refreshing the Bitbucket repository catalog.');
+    setErrorMessage('');
+
+    try {
+      const next = await refreshBitbucketCatalog();
+      setCatalogResult(next);
+      setStatusMessage(
+        `Catalog refreshed: ${next.projectsDiscovered} projects, ${next.repositoriesDiscovered} repositories.`
+      );
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Repository catalog refresh failed.');
+      setStatusMessage('Catalog refresh failed.');
+    } finally {
+      setProgressState('idle');
     }
   }
 
@@ -79,20 +119,27 @@ export function SyncBitbucketDataPage() {
       return;
     }
 
-    setSyncing(true);
+    setProgressState('syncing');
+    setStatusMessage('Syncing Bitbucket pull requests.');
     setErrorMessage('');
+
     try {
       const next = await syncBitbucketData({
         projectId: selectedProject.projectId,
         fromDate: fromDate.trim(),
         toDate: toDate.trim(),
         ssos: selectedSsos,
+        fullRefresh,
       });
-      setResult(next);
+      setSyncResult(next);
+      setStatusMessage(
+        `Sync complete: ${next.prsDiscovered} PRs discovered, ${next.prsInserted} inserted, ${next.prsUpdated} updated.`
+      );
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Bitbucket sync failed.');
+      setStatusMessage('Sync failed.');
     } finally {
-      setSyncing(false);
+      setProgressState('idle');
     }
   }
 
@@ -117,31 +164,32 @@ export function SyncBitbucketDataPage() {
           <div>
             <div className="table-panel__title">Sync Bitbucket Data</div>
             <div className="table-panel__subtitle">
-              Select a project, load its SSOs, resolve Bitbucket user IDs, and save the mapping.
+              Select an application project, resolve its SSOs to Bitbucket users, refresh the repository catalog, and sync PR analytics.
             </div>
           </div>
           {selectedProject ? (
             <div className="bitbucket-sync-panel__meta">
               <div>Project ID: {selectedProject.projectId}</div>
               <div>Project Key: {selectedProject.projectKey}</div>
+              <div>Project Name: {selectedProject.projectName}</div>
             </div>
           ) : null}
         </div>
 
         <div className="bitbucket-sync-grid">
           <label className="bitbucket-sync-field">
-            <span>Project</span>
+            <span>Application Project / Team</span>
             <div className="bitbucket-sync-field__control">
               <GitPullRequest size={16} />
               <select
                 value={selectedProjectId}
                 onChange={(event) => setSelectedProjectId(event.target.value)}
-                disabled={loadingProjects || syncing}
+                disabled={progressState === 'loading-projects' || progressState === 'refreshing-catalog' || progressState === 'syncing'}
               >
                 <option value="">Select a project</option>
                 {projects.map((project) => (
                   <option key={project.projectId} value={project.projectId}>
-                    {project.projectName}
+                    {project.projectName} ({project.projectKey}, #{project.projectId})
                   </option>
                 ))}
               </select>
@@ -164,6 +212,14 @@ export function SyncBitbucketDataPage() {
             </div>
           </div>
 
+          <div className="bitbucket-sync-field">
+            <span>Project Name</span>
+            <div className="bitbucket-sync-field__readonly">
+              <CheckCircle2 size={16} />
+              <div>{selectedProject ? selectedProject.projectName : 'Select a project to continue'}</div>
+            </div>
+          </div>
+
           <label className="bitbucket-sync-field">
             <span>From Date</span>
             <div className="bitbucket-sync-field__control bitbucket-sync-field__control--date">
@@ -172,7 +228,7 @@ export function SyncBitbucketDataPage() {
                 type="date"
                 value={fromDate}
                 onChange={(event) => setFromDate(event.target.value)}
-                disabled={syncing}
+                disabled={progressState === 'syncing'}
               />
             </div>
           </label>
@@ -185,8 +241,21 @@ export function SyncBitbucketDataPage() {
                 type="date"
                 value={toDate}
                 onChange={(event) => setToDate(event.target.value)}
-                disabled={syncing}
+                disabled={progressState === 'syncing'}
               />
+            </div>
+          </label>
+
+          <label className="bitbucket-sync-field bitbucket-sync-field--toggle">
+            <span>Full Refresh</span>
+            <div className="bitbucket-sync-field__toggle">
+              <input
+                type="checkbox"
+                checked={fullRefresh}
+                onChange={(event) => setFullRefresh(event.target.checked)}
+                disabled={progressState === 'syncing'}
+              />
+              <div>Re-resolve SSO mappings and re-enrich PRs even when cached data exists.</div>
             </div>
           </label>
         </div>
@@ -194,9 +263,9 @@ export function SyncBitbucketDataPage() {
         <section className="bitbucket-sso-panel">
           <div className="bitbucket-sso-panel__header">
             <div>
-              <div className="bitbucket-sso-panel__title">Project SSOs</div>
+              <div className="bitbucket-sso-panel__title">Team SSOs</div>
               <div className="bitbucket-sso-panel__subtitle">
-                {loadingSsos
+                {progressState === 'loading-ssos'
                   ? 'Loading SSOs...'
                   : projectSsos.length > 0
                     ? `${projectSsos.length} SSOs found for this project.`
@@ -204,11 +273,21 @@ export function SyncBitbucketDataPage() {
               </div>
             </div>
             <div className="bitbucket-sso-panel__actions">
-              <button type="button" className="bitbucket-sync-button bitbucket-sync-button--secondary" onClick={selectAll} disabled={!projectSsos.length || syncing}>
+              <button
+                type="button"
+                className="bitbucket-sync-button bitbucket-sync-button--secondary"
+                onClick={selectAll}
+                disabled={!projectSsos.length || progressState === 'syncing'}
+              >
                 <SquareCheckBig size={16} />
                 Select All
               </button>
-              <button type="button" className="bitbucket-sync-button bitbucket-sync-button--secondary" onClick={clearAll} disabled={!selectedSsos.length || syncing}>
+              <button
+                type="button"
+                className="bitbucket-sync-button bitbucket-sync-button--secondary"
+                onClick={clearAll}
+                disabled={!selectedSsos.length || progressState === 'syncing'}
+              >
                 Clear All
               </button>
             </div>
@@ -222,24 +301,53 @@ export function SyncBitbucketDataPage() {
                     type="checkbox"
                     checked={selectedSsos.includes(sso)}
                     onChange={() => toggleSso(sso)}
-                    disabled={syncing}
+                    disabled={progressState === 'syncing'}
                   />
                   <span>{sso}</span>
                 </label>
               ))
             ) : (
               <div className="bitbucket-sso-empty">
-                {loadingSsos ? 'Loading project SSOs...' : 'No SSOs available for this project.'}
+                {progressState === 'loading-ssos'
+                  ? 'Loading project SSOs...'
+                  : 'No SSOs are available for this project.'}
               </div>
             )}
           </div>
         </section>
 
         <div className="bitbucket-sync-actions">
-          <button type="button" className="bitbucket-sync-button" onClick={handleSync} disabled={!canSync}>
-            {syncing ? <RefreshCw size={18} className="spin" /> : <RefreshCw size={18} />}
-            {syncing ? 'Syncing Bitbucket data...' : 'Sync Bitbucket Data'}
+          <button
+            type="button"
+            className="bitbucket-sync-button bitbucket-sync-button--secondary"
+            onClick={handleRefreshCatalog}
+            disabled={progressState === 'loading-projects' || progressState === 'loading-ssos' || progressState === 'refreshing-catalog' || progressState === 'syncing'}
+          >
+            {progressState === 'refreshing-catalog' ? <RefreshCw size={18} className="spin" /> : <RefreshCw size={18} />}
+            Refresh Repository Catalog
           </button>
+          <button
+            type="button"
+            className="bitbucket-sync-button"
+            onClick={handleSync}
+            disabled={!canSync}
+          >
+            {progressState === 'syncing' ? <RefreshCw size={18} className="spin" /> : <RefreshCw size={18} />}
+            {progressState === 'syncing' ? 'Syncing Bitbucket Data...' : 'Sync Bitbucket Data'}
+          </button>
+        </div>
+      </section>
+
+      <section className="table-panel bitbucket-sync-summary">
+        <div className="table-panel__header">
+          <div>
+            <div className="table-panel__title">Sync Progress</div>
+            <div className="table-panel__subtitle">{statusMessage}</div>
+          </div>
+          <div className="bitbucket-sync-panel__meta">
+            <div>State: {progressState}</div>
+            <div>Selected SSOs: {selectedSsos.length}</div>
+          </div>
         </div>
       </section>
 
@@ -250,44 +358,77 @@ export function SyncBitbucketDataPage() {
         </section>
       ) : null}
 
-      {result ? (
+      {catalogResult ? (
         <section className="table-panel bitbucket-sync-result">
           <div className="table-panel__header">
             <div>
-              <div className="table-panel__title">Sync Result</div>
-              <div className="table-panel__subtitle">SSO mapping sync completed for the selected project.</div>
+              <div className="table-panel__title">Repository Catalog Refresh</div>
+              <div className="table-panel__subtitle">The Bitbucket project and repository cache has been updated.</div>
             </div>
             <div className="bitbucket-sync-panel__meta">
-              <div>Status: {result.status}</div>
-              <div>Sync Time: {formatSyncTime(result.syncTime)}</div>
+              <div>Status: {catalogResult.status}</div>
+              <div>Refreshed At: {formatTimestamp(catalogResult.refreshedAt)}</div>
+            </div>
+          </div>
+
+          <div className="kpi-grid kpi-grid--three bitbucket-sync-result__kpis">
+            <div className="kpi-card">
+              <div className="kpi-card__title">Projects Discovered</div>
+              <div className="kpi-card__value">{catalogResult.projectsDiscovered}</div>
+            </div>
+            <div className="kpi-card">
+              <div className="kpi-card__title">Repositories Discovered</div>
+              <div className="kpi-card__value">{catalogResult.repositoriesDiscovered}</div>
+            </div>
+            <div className="kpi-card">
+              <div className="kpi-card__title">Catalog Status</div>
+              <div className="kpi-card__value">{catalogResult.status}</div>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      {syncResult ? (
+        <section className="table-panel bitbucket-sync-result">
+          <div className="table-panel__header">
+            <div>
+              <div className="table-panel__title">Sync Summary</div>
+              <div className="table-panel__subtitle">Bitbucket PRs were resolved, enriched, normalized, and written to the database.</div>
+            </div>
+            <div className="bitbucket-sync-panel__meta">
+              <div>Status: {syncResult.status}</div>
+              <div>Sync Time: {formatTimestamp(syncResult.syncTime)}</div>
             </div>
           </div>
 
           <div className="kpi-grid kpi-grid--three bitbucket-sync-result__kpis">
             <div className="kpi-card">
               <div className="kpi-card__title">SSOs Selected</div>
-              <div className="kpi-card__value">{result.ssosRequested}</div>
+              <div className="kpi-card__value">{syncResult.ssosRequested}</div>
             </div>
             <div className="kpi-card">
               <div className="kpi-card__title">User IDs Resolved</div>
-              <div className="kpi-card__value">{result.userIdsResolved}</div>
+              <div className="kpi-card__value">{syncResult.userIdsResolved}</div>
             </div>
             <div className="kpi-card">
-              <div className="kpi-card__title">Errors</div>
-              <div className="kpi-card__value">{result.errors.length}</div>
+              <div className="kpi-card__title">Repositories Scanned</div>
+              <div className="kpi-card__value">{syncResult.repositoriesScanned}</div>
             </div>
           </div>
 
           <div className="bitbucket-sync-result__detail">
-            <div>Project ID: {result.projectId}</div>
-            <div>PRs Found: {result.prsDiscovered}</div>
-            <div>New PRs: {result.prsInserted}</div>
-            <div>Updated PRs: {result.prsUpdated}</div>
+            <div>Project ID: {syncResult.projectId}</div>
+            <div>Catalog Status: {syncResult.catalogStatus}</div>
+            <div>Projects Discovered: {syncResult.projectsDiscovered}</div>
+            <div>Repositories Discovered: {syncResult.repositoriesDiscovered}</div>
+            <div>PRs Found: {syncResult.prsDiscovered}</div>
+            <div>New PRs: {syncResult.prsInserted}</div>
+            <div>Updated PRs: {syncResult.prsUpdated}</div>
           </div>
 
-          {result.errors.length > 0 ? (
+          {syncResult.errors.length > 0 ? (
             <div className="bitbucket-sync-error-list">
-              {result.errors.map((item) => (
+              {syncResult.errors.map((item) => (
                 <div key={`${item.sso}-${item.error}`} className="bitbucket-sync-error-item">
                   <strong>{item.sso}</strong>
                   <span>{item.error}</span>
@@ -301,13 +442,13 @@ export function SyncBitbucketDataPage() {
   );
 }
 
-function formatSyncTime(syncTime: string): string {
-  if (!syncTime) {
+function formatTimestamp(value: string): string {
+  if (!value) {
     return '—';
   }
-  const date = new Date(syncTime);
+  const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
-    return syncTime;
+    return value;
   }
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(date);
 }

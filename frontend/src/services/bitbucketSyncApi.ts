@@ -1,4 +1,5 @@
 import type {
+  BitbucketCatalogRefreshResult,
   BitbucketSyncRequest,
   BitbucketSyncResult,
   ProjectOption,
@@ -42,6 +43,13 @@ export async function fetchProjects(): Promise<ProjectOption[]> {
 export async function fetchProjectSsos(projectId: number): Promise<ProjectSso[]> {
   const response = await fetch(`/api/projects/${projectId}/ssos`);
   return await readJson<ProjectSso[]>(response);
+}
+
+export async function refreshBitbucketCatalog(): Promise<BitbucketCatalogRefreshResult> {
+  const response = await fetch('/api/bitbucket/catalog/refresh', {
+    method: 'POST',
+  });
+  return await readJson<BitbucketCatalogRefreshResult>(response);
 }
 
 export async function syncBitbucketData(payload: BitbucketSyncRequest): Promise<BitbucketSyncResult> {

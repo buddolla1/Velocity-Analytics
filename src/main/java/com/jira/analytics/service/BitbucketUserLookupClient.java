@@ -3,6 +3,7 @@ package com.jira.analytics.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jira.analytics.config.BitbucketProperties;
+import com.jira.analytics.dto.BitbucketUserMapping;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URLEncoder;
@@ -11,6 +12,8 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -32,7 +35,7 @@ public class BitbucketUserLookupClient {
                 .build();
     }
 
-    public Optional<String> resolveBitbucketUserId(String sso) {
+    public Optional<BitbucketUserMapping> resolveBitbucketUser(String sso) {
         if (!StringUtils.hasText(sso)) {
             return Optional.empty();
         }
@@ -42,9 +45,8 @@ public class BitbucketUserLookupClient {
             throw new IllegalStateException("Missing Bitbucket base URL. Set BITBUCKET_BASE_URL.");
         }
 
-        String lookupPath = properties.getUserLookupPath();
         String encodedSso = URLEncoder.encode(sso.trim(), StandardCharsets.UTF_8);
-        URI uri = URI.create(baseUrl.replaceAll("/+$", "") + lookupPath + encodedSso);
+        URI uri = URI.create(baseUrl.replaceAll("/+$", "") + properties.getUserLookupPath() + encodedSso);
         HttpRequest request = HttpRequest.newBuilder(uri)
                 .timeout(Duration.ofSeconds(30))
                 .GET()
@@ -56,16 +58,16 @@ public class BitbucketUserLookupClient {
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
                 throw new IllegalStateException("Bitbucket user lookup failed with HTTP " + response.statusCode());
             }
-            return extractUserId(response.body());
+            return extractUserMapping(response.body());
         } catch (IOException exception) {
-            throw new IllegalStateException("Failed to resolve Bitbucket user ID.", exception);
+            throw new IllegalStateException("Failed to resolve Bitbucket user mapping.", exception);
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
-            throw new IllegalStateException("Failed to resolve Bitbucket user ID.", exception);
+            throw new IllegalStateException("Failed to resolve Bitbucket user mapping.", exception);
         }
     }
 
-    private Optional<String> extractUserId(String body) throws IOException {
+    private Optional<BitbucketUserMapping> extractUserMapping(String body) throws IOException {
         JsonNode root = objectMapper.readTree(body);
         List<JsonNode> candidates = new ArrayList<>();
         if (root.isArray()) {
@@ -77,11 +79,20 @@ public class BitbucketUserLookupClient {
         }
 
         for (JsonNode candidate : candidates) {
-            String userId = firstText(candidate, "id", "userId", "bitbucketUserId", "name", "slug");
-            if (StringUtils.hasText(userId)) {
-                return Optional.of(userId.trim());
+            String userId = firstText(candidate, "id", "userId", "bitbucketUserId", "name");
+            String username = firstText(candidate, "name", "username", "slug");
+            String slug = firstText(candidate, "slug", "name", "username");
+            if (!StringUtils.hasText(userId) && !StringUtils.hasText(username) && !StringUtils.hasText(slug)) {
+                continue;
             }
+            return Optional.of(new BitbucketUserMapping(
+                    normalize(userId),
+                    normalize(username),
+                    normalize(slug),
+                    OffsetDateTime.now(ZoneOffset.UTC)
+            ));
         }
+
         return Optional.empty();
     }
 
@@ -96,5 +107,9 @@ public class BitbucketUserLookupClient {
             }
         }
         return null;
+    }
+
+    private String normalize(String value) {
+        return StringUtils.hasText(value) ? value.trim() : null;
     }
 }

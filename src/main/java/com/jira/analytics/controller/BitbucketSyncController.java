@@ -4,6 +4,7 @@ import com.jira.analytics.dto.BitbucketSyncRequest;
 import com.jira.analytics.dto.BitbucketSyncResult;
 import com.jira.analytics.dto.ProjectOption;
 import com.jira.analytics.dto.ProjectSso;
+import com.jira.analytics.dto.BitbucketCatalogRefreshResult;
 import com.jira.analytics.service.BitbucketSyncService;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -33,6 +34,11 @@ public class BitbucketSyncController {
         return bitbucketSyncService.findProjectSsos(projectId).stream()
                 .map(ProjectSso::new)
                 .toList();
+    }
+
+    @PostMapping("/bitbucket/catalog/refresh")
+    public BitbucketCatalogRefreshResult refreshCatalog() {
+        return bitbucketSyncService.refreshCatalog();
     }
 
     @PostMapping("/bitbucket/sync")

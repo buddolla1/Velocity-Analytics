@@ -6,6 +6,7 @@ public record BitbucketSyncRequest(
         Long projectId,
         String fromDate,
         String toDate,
-        List<String> ssos
+        List<String> ssos,
+        Boolean fullRefresh
 ) {
 }

@@ -13,6 +13,7 @@ export interface BitbucketSyncRequest {
   fromDate: string;
   toDate: string;
   ssos: string[];
+  fullRefresh?: boolean;
 }
 
 export interface SyncError {
@@ -25,9 +26,20 @@ export interface BitbucketSyncResult {
   projectId: number;
   ssosRequested: number;
   userIdsResolved: number;
+  catalogStatus: string;
+  projectsDiscovered: number;
+  repositoriesDiscovered: number;
+  repositoriesScanned: number;
   prsDiscovered: number;
   prsInserted: number;
   prsUpdated: number;
   errors: SyncError[];
   syncTime: string;
+}
+
+export interface BitbucketCatalogRefreshResult {
+  status: string;
+  projectsDiscovered: number;
+  repositoriesDiscovered: number;
+  refreshedAt: string;
 }

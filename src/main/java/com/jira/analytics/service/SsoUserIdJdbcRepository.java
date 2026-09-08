@@ -1,5 +1,6 @@
 package com.jira.analytics.service;
 
+import com.jira.analytics.dto.BitbucketUserMapping;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -12,7 +13,7 @@ import org.springframework.util.StringUtils;
 @Repository
 public class SsoUserIdJdbcRepository {
 
-    private static final String SELECT_COLUMNS = "id, project_id, sso, bitbucket_user_id, last_synced_at";
+    private static final String SELECT_COLUMNS = "id, project_id, sso, bitbucket_user_id, bitbucket_username, bitbucket_slug, last_resolved_at";
 
     private final JdbcTemplate jdbcTemplate;
 
@@ -32,7 +33,9 @@ public class SsoUserIdJdbcRepository {
                         rs.getLong("project_id"),
                         rs.getString("sso"),
                         rs.getString("bitbucket_user_id"),
-                        rs.getObject("last_synced_at", OffsetDateTime.class)
+                        rs.getString("bitbucket_username"),
+                        rs.getString("bitbucket_slug"),
+                        rs.getObject("last_resolved_at", OffsetDateTime.class)
                 ),
                 projectId,
                 sso.trim()
@@ -52,7 +55,9 @@ public class SsoUserIdJdbcRepository {
                         rs.getLong("project_id"),
                         rs.getString("sso"),
                         rs.getString("bitbucket_user_id"),
-                        rs.getObject("last_synced_at", OffsetDateTime.class)
+                        rs.getString("bitbucket_username"),
+                        rs.getString("bitbucket_slug"),
+                        rs.getObject("last_resolved_at", OffsetDateTime.class)
                 ),
                 projectId
         );
@@ -65,8 +70,10 @@ public class SsoUserIdJdbcRepository {
         }
         jdbcTemplate.batchUpdate(
                 """
-                INSERT INTO sso_userid (project_id, sso, bitbucket_user_id, last_synced_at)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO sso_userid (
+                    project_id, sso, bitbucket_user_id, bitbucket_username, bitbucket_slug, last_resolved_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
                 mappings,
                 500,
@@ -74,7 +81,9 @@ public class SsoUserIdJdbcRepository {
                     ps.setLong(1, mapping.projectId());
                     ps.setString(2, mapping.sso());
                     ps.setString(3, mapping.bitbucketUserId());
-                    ps.setObject(4, mapping.lastSyncedAt());
+                    ps.setString(4, mapping.bitbucketUsername());
+                    ps.setString(5, mapping.bitbucketSlug());
+                    ps.setObject(6, mapping.lastResolvedAt());
                 }
         );
     }
@@ -87,66 +96,92 @@ public class SsoUserIdJdbcRepository {
         jdbcTemplate.batchUpdate(
                 """
                 UPDATE sso_userid
-                SET bitbucket_user_id = ?, last_synced_at = ?
+                SET bitbucket_user_id = ?, bitbucket_username = ?, bitbucket_slug = ?, last_resolved_at = ?
                 WHERE id = ?
                 """,
                 mappings,
                 500,
                 (ps, mapping) -> {
                     ps.setString(1, mapping.bitbucketUserId());
-                    ps.setObject(2, mapping.lastSyncedAt());
-                    ps.setLong(3, mapping.id());
+                    ps.setString(2, mapping.bitbucketUsername());
+                    ps.setString(3, mapping.bitbucketSlug());
+                    ps.setObject(4, mapping.lastResolvedAt());
+                    ps.setLong(5, mapping.id());
                 }
         );
     }
 
     @Transactional
-    public SsoUserIdMapping saveOrUpdate(Long projectId, String sso, String bitbucketUserId) {
+    public SsoUserIdMapping saveOrUpdate(Long projectId, String sso, BitbucketUserMapping mapping) {
         if (projectId == null) {
             throw new IllegalArgumentException("Project id is required.");
         }
         if (!StringUtils.hasText(sso)) {
             throw new IllegalArgumentException("SSO is required.");
         }
-        if (!StringUtils.hasText(bitbucketUserId)) {
-            throw new IllegalArgumentException("Bitbucket user id is required.");
+        if (mapping == null || !mapping.isValid()) {
+            throw new IllegalArgumentException("Bitbucket user mapping is required.");
         }
 
-        OffsetDateTime syncedAt = OffsetDateTime.now(ZoneOffset.UTC);
+        OffsetDateTime resolvedAt = mapping.lastResolvedAt() == null ? OffsetDateTime.now(ZoneOffset.UTC) : mapping.lastResolvedAt();
         Optional<SsoUserIdMapping> existing = findByProjectIdAndSso(projectId, sso);
         if (existing.isPresent()) {
             SsoUserIdMapping current = existing.get();
-            if (!bitbucketUserId.trim().equals(current.bitbucketUserId())) {
+            if (!safeEquals(mapping.bitbucketUserId(), current.bitbucketUserId())
+                    || !safeEquals(mapping.bitbucketUsername(), current.bitbucketUsername())
+                    || !safeEquals(mapping.bitbucketSlug(), current.bitbucketSlug())) {
                 jdbcTemplate.update(
                         """
                         UPDATE sso_userid
-                        SET bitbucket_user_id = ?, last_synced_at = ?
+                        SET bitbucket_user_id = ?, bitbucket_username = ?, bitbucket_slug = ?, last_resolved_at = ?
                         WHERE id = ?
                         """,
-                        bitbucketUserId.trim(),
-                        syncedAt,
+                        trimOrNull(mapping.bitbucketUserId()),
+                        trimOrNull(mapping.bitbucketUsername()),
+                        trimOrNull(mapping.bitbucketSlug()),
+                        resolvedAt,
                         current.id()
                 );
-                return new SsoUserIdMapping(current.id(), projectId, sso.trim(), bitbucketUserId.trim(), syncedAt);
+                return new SsoUserIdMapping(
+                        current.id(),
+                        projectId,
+                        sso.trim(),
+                        trimOrNull(mapping.bitbucketUserId()),
+                        trimOrNull(mapping.bitbucketUsername()),
+                        trimOrNull(mapping.bitbucketSlug()),
+                        resolvedAt
+                );
             }
 
             jdbcTemplate.update(
-                    "UPDATE sso_userid SET last_synced_at = ? WHERE id = ?",
-                    syncedAt,
+                    "UPDATE sso_userid SET last_resolved_at = ? WHERE id = ?",
+                    resolvedAt,
                     current.id()
             );
-            return new SsoUserIdMapping(current.id(), projectId, sso.trim(), current.bitbucketUserId(), syncedAt);
+            return new SsoUserIdMapping(
+                    current.id(),
+                    projectId,
+                    sso.trim(),
+                    current.bitbucketUserId(),
+                    current.bitbucketUsername(),
+                    current.bitbucketSlug(),
+                    resolvedAt
+            );
         }
 
         jdbcTemplate.update(
                 """
-                INSERT INTO sso_userid (project_id, sso, bitbucket_user_id, last_synced_at)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO sso_userid (
+                    project_id, sso, bitbucket_user_id, bitbucket_username, bitbucket_slug, last_resolved_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
                 projectId,
                 sso.trim(),
-                bitbucketUserId.trim(),
-                syncedAt
+                trimOrNull(mapping.bitbucketUserId()),
+                trimOrNull(mapping.bitbucketUsername()),
+                trimOrNull(mapping.bitbucketSlug()),
+                resolvedAt
         );
         return findByProjectIdAndSso(projectId, sso).orElseThrow();
     }
@@ -156,7 +191,22 @@ public class SsoUserIdJdbcRepository {
             Long projectId,
             String sso,
             String bitbucketUserId,
-            OffsetDateTime lastSyncedAt
+            String bitbucketUsername,
+            String bitbucketSlug,
+            OffsetDateTime lastResolvedAt
     ) {
+    }
+
+    private String trimOrNull(String value) {
+        return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
+    private boolean safeEquals(String left, String right) {
+        String normalizedLeft = trimOrNull(left);
+        String normalizedRight = trimOrNull(right);
+        if (normalizedLeft == null) {
+            return normalizedRight == null;
+        }
+        return normalizedLeft.equals(normalizedRight);
     }
 }

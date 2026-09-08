@@ -7,8 +7,12 @@ public class BitbucketProperties {
 
     private String baseUrl;
     private String userLookupPath = "/rest/api/1.0/users?filter=";
-    private String pullRequestDiscoveryPath = "/rest/internal/contributions/pull-requests";
     private int pageSize = 100;
+    private int catalogTtlHours = 24;
+    private int syncConcurrency = 5;
+    private int fullScanDays = 7;
+    private int participantBatchSize = 25;
+    private int userLookupTtlHours = 168;
 
     public String getBaseUrl() {
         return baseUrl;
@@ -26,19 +30,51 @@ public class BitbucketProperties {
         this.userLookupPath = userLookupPath;
     }
 
-    public String getPullRequestDiscoveryPath() {
-        return pullRequestDiscoveryPath;
-    }
-
-    public void setPullRequestDiscoveryPath(String pullRequestDiscoveryPath) {
-        this.pullRequestDiscoveryPath = pullRequestDiscoveryPath;
-    }
-
     public int getPageSize() {
         return pageSize;
     }
 
     public void setPageSize(int pageSize) {
         this.pageSize = pageSize;
+    }
+
+    public int getCatalogTtlHours() {
+        return catalogTtlHours;
+    }
+
+    public void setCatalogTtlHours(int catalogTtlHours) {
+        this.catalogTtlHours = catalogTtlHours;
+    }
+
+    public int getSyncConcurrency() {
+        return syncConcurrency;
+    }
+
+    public void setSyncConcurrency(int syncConcurrency) {
+        this.syncConcurrency = syncConcurrency;
+    }
+
+    public int getFullScanDays() {
+        return fullScanDays;
+    }
+
+    public void setFullScanDays(int fullScanDays) {
+        this.fullScanDays = fullScanDays;
+    }
+
+    public int getParticipantBatchSize() {
+        return participantBatchSize;
+    }
+
+    public void setParticipantBatchSize(int participantBatchSize) {
+        this.participantBatchSize = participantBatchSize;
+    }
+
+    public int getUserLookupTtlHours() {
+        return userLookupTtlHours;
+    }
+
+    public void setUserLookupTtlHours(int userLookupTtlHours) {
+        this.userLookupTtlHours = userLookupTtlHours;
     }
 }

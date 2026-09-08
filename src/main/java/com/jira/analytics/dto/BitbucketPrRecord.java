@@ -4,13 +4,15 @@ import java.time.OffsetDateTime;
 
 public record BitbucketPrRecord(
         Long id,
-        Long projectId,
+        Long applicationProjectId,
         String projectKey,
+        String projectName,
         String repositoryName,
         String repoSlug,
         Long prId,
         String authorName,
         String authorUsername,
+        String authorUserId,
         String title,
         String description,
         String sourceBranch,

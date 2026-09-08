@@ -33,22 +33,44 @@ public class BitbucketApiClient {
                 .build();
     }
 
-    public List<JsonNode> discoverPullRequests(String projectKey, String fromDate, String toDate, List<String> userIds) {
+    public List<JsonNode> discoverProjects() {
+        return fetchPagedValues("/rest/api/1.0/projects", Map.of("limit", List.of(String.valueOf(properties.getPageSize()))));
+    }
+
+    public List<JsonNode> discoverRepositories(String projectKey) {
+        if (!StringUtils.hasText(projectKey)) {
+            return List.of();
+        }
+        return fetchPagedValues(
+                "/rest/api/1.0/projects/" + encode(projectKey.trim()) + "/repos",
+                Map.of("limit", List.of(String.valueOf(properties.getPageSize())))
+        );
+    }
+
+    public List<JsonNode> searchPullRequests(String projectKey, String repoSlug, List<String> authorFilters) {
+        if (!StringUtils.hasText(projectKey) || !StringUtils.hasText(repoSlug)) {
+            return List.of();
+        }
+
         Map<String, List<String>> params = new LinkedHashMap<>();
-        params.put("version", List.of("v2"));
-        if (StringUtils.hasText(projectKey)) {
-            params.put("projectKey", List.of(projectKey.trim()));
+        params.put("state", List.of("ALL"));
+        params.put("limit", List.of(String.valueOf(properties.getPageSize())));
+        params.put("role", List.of("AUTHOR"));
+        if (authorFilters != null) {
+            List<String> filtered = authorFilters.stream()
+                    .filter(StringUtils::hasText)
+                    .map(String::trim)
+                    .distinct()
+                    .toList();
+            if (!filtered.isEmpty()) {
+                params.put("participant", filtered);
+            }
         }
-        if (StringUtils.hasText(fromDate)) {
-            params.put("from", List.of(fromDate.trim()));
-        }
-        if (StringUtils.hasText(toDate)) {
-            params.put("to", List.of(toDate.trim()));
-        }
-        if (userIds != null && !userIds.isEmpty()) {
-            params.put("userIds", new ArrayList<>(userIds));
-        }
-        return fetchPagedValues(resolvePath(properties.getPullRequestDiscoveryPath()), params);
+
+        return fetchPagedValues(
+                "/rest/api/1.0/projects/" + encode(projectKey.trim()) + "/repos/" + encode(repoSlug.trim()) + "/pull-requests",
+                params
+        );
     }
 
     public JsonNode getPullRequest(String projectKey, String repoSlug, long prId) {
@@ -56,11 +78,11 @@ public class BitbucketApiClient {
     }
 
     public List<JsonNode> getPullRequestCommits(String projectKey, String repoSlug, long prId) {
-        return fetchPagedValues(resolveCommitsPath(projectKey, repoSlug, prId), Map.of("limit", List.of(String.valueOf(properties.getPageSize()))));
+        return fetchPagedValues(resolveDetailPath(projectKey, repoSlug, prId) + "/commits", Map.of("limit", List.of(String.valueOf(properties.getPageSize()))));
     }
 
     public List<JsonNode> getPullRequestActivities(String projectKey, String repoSlug, long prId) {
-        return fetchPagedValues(resolveActivitiesPath(projectKey, repoSlug, prId), Map.of("limit", List.of(String.valueOf(properties.getPageSize()))));
+        return fetchPagedValues(resolveDetailPath(projectKey, repoSlug, prId) + "/activities", Map.of("limit", List.of(String.valueOf(properties.getPageSize()))));
     }
 
     private List<JsonNode> fetchPagedValues(String path, Map<String, List<String>> baseParams) {
@@ -110,7 +132,7 @@ public class BitbucketApiClient {
         try {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                throw new IllegalStateException("Bitbucket request failed with HTTP " + response.statusCode());
+                throw new IllegalStateException("Bitbucket request failed with HTTP " + response.statusCode() + " for " + uri);
             }
             return objectMapper.readTree(response.body());
         } catch (IOException exception) {
@@ -130,7 +152,6 @@ public class BitbucketApiClient {
             response.forEach(values::add);
             return values;
         }
-
         for (String field : List.of("values", "pullRequests", "results", "items")) {
             JsonNode candidate = response.get(field);
             if (candidate != null && candidate.isArray()) {
@@ -140,7 +161,6 @@ public class BitbucketApiClient {
                 }
             }
         }
-
         values.add(response);
         return values;
     }
@@ -151,21 +171,6 @@ public class BitbucketApiClient {
 
     private String resolveDetailPath(String projectKey, String repoSlug, long prId) {
         return "/rest/api/1.0/projects/" + encode(projectKey) + "/repos/" + encode(repoSlug) + "/pull-requests/" + prId;
-    }
-
-    private String resolveCommitsPath(String projectKey, String repoSlug, long prId) {
-        return resolveDetailPath(projectKey, repoSlug, prId) + "/commits";
-    }
-
-    private String resolveActivitiesPath(String projectKey, String repoSlug, long prId) {
-        return resolveDetailPath(projectKey, repoSlug, prId) + "/activities";
-    }
-
-    private String resolvePath(String path) {
-        if (!StringUtils.hasText(path)) {
-            throw new IllegalStateException("Missing Bitbucket discovery path.");
-        }
-        return path.startsWith("/") ? path : "/" + path;
     }
 
     private String toQueryString(Map<String, List<String>> queryParams) {
